@@ -20,8 +20,27 @@ if not EMAIL_ADDRESS or not EMAIL_PASSWORD or not SPAM_API_URL:
 def connect():
     imap = imaplib.IMAP4_SSL("imap.gmail.com")
     imap.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-    imap.select("inbox")
+    imap.select("INBOX")
     return imap
+
+# ==============================
+# MOVE EMAIL TO SPAM (PROPER WAY)
+# ==============================
+def move_to_spam(imap, msg_id):
+    try:
+        # Copy to Gmail Spam folder
+        imap.copy(msg_id, "[Gmail]/Spam")
+
+        # Mark original message as deleted
+        imap.store(msg_id, "+FLAGS", "\\Deleted")
+
+        # Permanently remove from inbox
+        imap.expunge()
+
+        print("Successfully moved to Spam")
+
+    except Exception as e:
+        print("Move failed:", e)
 
 # ==============================
 # PROCESS EMAILS
@@ -61,7 +80,7 @@ def scan_emails():
 
             if result["prediction"] == "Spam":
                 print("Moving to Spam:", subject)
-                imap.store(num, "+X-GM-LABELS", "\\Spam")
+                move_to_spam(imap, num)
 
         except Exception as e:
             print("API Error:", e)
@@ -74,4 +93,4 @@ def scan_emails():
 while True:
     print("Scanning inbox...")
     scan_emails()
-    time.sleep(300)  # every 5 minutes
+    time.sleep(300)
