@@ -5,18 +5,22 @@ import pickle
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import confusion_matrix, accuracy_score
 
 app = FastAPI()
 
 MODEL_PATH = "model.pkl"
 VECTORIZER_PATH = "vectorizer.pkl"
+DATA_PATH = "spam.csv"
 
 # ===============================
 # TRAIN MODEL IF NOT EXISTS
 # ===============================
 if not os.path.exists(MODEL_PATH):
 
-    data = pd.read_csv("spam.csv")
+    print("Training model...")
+
+    data = pd.read_csv(DATA_PATH)
     data['label'] = data['label'].map({'ham': 0, 'spam': 1})
 
     vectorizer = TfidfVectorizer(
@@ -38,9 +42,29 @@ if not os.path.exists(MODEL_PATH):
     pickle.dump(model, open(MODEL_PATH, "wb"))
     pickle.dump(vectorizer, open(VECTORIZER_PATH, "wb"))
 
+    print("Model trained and saved.")
+
 else:
+    print("Loading existing model...")
     model = pickle.load(open(MODEL_PATH, "rb"))
     vectorizer = pickle.load(open(VECTORIZER_PATH, "rb"))
+
+# ===============================
+# COMPUTE METRICS ON STARTUP
+# ===============================
+print("Calculating model metrics...")
+
+data = pd.read_csv(DATA_PATH)
+data['label'] = data['label'].map({'ham': 0, 'spam': 1})
+
+X_full = vectorizer.transform(data['message'])
+y_true = data['label']
+y_pred = model.predict(X_full)
+
+tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+accuracy = accuracy_score(y_true, y_pred)
+
+print("Metrics ready.")
 
 # ===============================
 # REQUEST SCHEMA
@@ -61,4 +85,20 @@ def predict(email: Email):
     return {
         "prediction": "Spam" if prediction == 1 else "Not Spam",
         "confidence": round(float(probability), 4)
+    }
+
+# ===============================
+# METRICS ENDPOINT
+# ===============================
+@app.get("/model-metrics")
+def model_metrics():
+
+    return {
+        "accuracy": round(float(accuracy), 4),
+        "quadrants": {
+            "True Positive (Spam correctly detected)": int(tp),
+            "True Negative (Ham correctly detected)": int(tn),
+            "False Positive (Ham marked as Spam)": int(fp),
+            "False Negative (Spam missed)": int(fn)
+        }
     }
