@@ -107,4 +107,4 @@ def scan_emails():
 while True:
     print("Scanning inbox...")
     scan_emails()
-    time.sleep(300)
+    time.sleep(30)
