@@ -16,10 +16,6 @@ from sklearn.model_selection import train_test_split
 
 app = FastAPI()
 
-MODEL_PATH = "model.pkl"
-VECTORIZER_PATH = "vectorizer.pkl"
-DATA_PATH = "spam.csv"
-IMAGE_PATH = "confusion_matrix.png"
 
 # ===============================
 # ROOT ROUTE (Prevents NX)
@@ -33,39 +29,35 @@ def home():
 # ===============================
 if not os.path.exists(MODEL_PATH):
 
-    print("Training model...")
+  print("Training model...")
 
-    data = pd.read_csv(DATA_PATH)
-    data['label'] = data['label'].map({'ham': 0, 'spam': 1})
+data = pd.read_csv(DATA_PATH)
+data['label'] = data['label'].map({'ham': 0, 'spam': 1})
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        data['message'],
-        data['label'],
-        test_size=0.2,
-        random_state=42
-    )
+X_train, X_test, y_train, y_test = train_test_split(
+    data['message'],
+    data['label'],
+    test_size=0.2,
+    random_state=42
+)
 
-    vectorizer = TfidfVectorizer(
-        stop_words='english',
-        max_df=0.9,
-        min_df=2
-    )
+vectorizer = TfidfVectorizer(
+    stop_words='english',
+    max_df=0.9,
+    min_df=2
+)
 
-    X_train_vec = vectorizer.fit_transform(X_train)
-    X_test_vec = vectorizer.transform(X_test)
+X_train_vec = vectorizer.fit_transform(X_train)
+X_test_vec = vectorizer.transform(X_test)
 
-    model = LogisticRegression(
-        max_iter=1000,
-        class_weight='balanced'
-    )
+model = LogisticRegression(
+    max_iter=1000,
+    class_weight='balanced'
+)
 
-    model.fit(X_train_vec, y_train)
+model.fit(X_train_vec, y_train)
 
-    pickle.dump(model, open(MODEL_PATH, "wb"))
-    pickle.dump(vectorizer, open(VECTORIZER_PATH, "wb"))
-
-    print("Model trained and saved.")
-
+print("Model trained successfully.")
 else:
     print("Loading existing model...")
     model = pickle.load(open(MODEL_PATH, "rb"))
