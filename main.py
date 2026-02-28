@@ -1,20 +1,26 @@
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import os
 import pickle
 import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, accuracy_score
+from sklearn.model_selection import train_test_split
 
 app = FastAPI()
 
 MODEL_PATH = "model.pkl"
 VECTORIZER_PATH = "vectorizer.pkl"
 DATA_PATH = "spam.csv"
+IMAGE_PATH = "confusion_matrix.png"
 
 # ===============================
-# TRAIN MODEL IF NOT EXISTS
+# TRAIN OR LOAD MODEL
 # ===============================
 if not os.path.exists(MODEL_PATH):
 
@@ -23,21 +29,19 @@ if not os.path.exists(MODEL_PATH):
     data = pd.read_csv(DATA_PATH)
     data['label'] = data['label'].map({'ham': 0, 'spam': 1})
 
-    vectorizer = TfidfVectorizer(
-        stop_words='english',
-        max_df=0.9,
-        min_df=2
+    X_train, X_test, y_train, y_test = train_test_split(
+        data['message'],
+        data['label'],
+        test_size=0.2,
+        random_state=42
     )
 
-    X = vectorizer.fit_transform(data['message'])
-    y = data['label']
+    vectorizer = TfidfVectorizer(stop_words='english', max_df=0.9, min_df=2)
+    X_train_vec = vectorizer.fit_transform(X_train)
+    X_test_vec = vectorizer.transform(X_test)
 
-    model = LogisticRegression(
-        max_iter=1000,
-        class_weight='balanced'
-    )
-
-    model.fit(X, y)
+    model = LogisticRegression(max_iter=1000, class_weight='balanced')
+    model.fit(X_train_vec, y_train)
 
     pickle.dump(model, open(MODEL_PATH, "wb"))
     pickle.dump(vectorizer, open(VECTORIZER_PATH, "wb"))
@@ -50,21 +54,19 @@ else:
     vectorizer = pickle.load(open(VECTORIZER_PATH, "rb"))
 
 # ===============================
-# COMPUTE METRICS ON STARTUP
+# CALCULATE METRICS
 # ===============================
-print("Calculating model metrics...")
-
 data = pd.read_csv(DATA_PATH)
 data['label'] = data['label'].map({'ham': 0, 'spam': 1})
 
-X_full = vectorizer.transform(data['message'])
-y_true = data['label']
-y_pred = model.predict(X_full)
+X = data['message']
+y = data['label']
 
-tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
-accuracy = accuracy_score(y_true, y_pred)
+X_vec = vectorizer.transform(X)
+y_pred = model.predict(X_vec)
 
-print("Metrics ready.")
+cm = confusion_matrix(y, y_pred)
+accuracy = accuracy_score(y, y_pred)
 
 # ===============================
 # REQUEST SCHEMA
@@ -73,7 +75,7 @@ class Email(BaseModel):
     text: str
 
 # ===============================
-# PREDICTION ENDPOINT
+# PREDICT ENDPOINT
 # ===============================
 @app.post("/predict")
 def predict(email: Email):
@@ -88,17 +90,41 @@ def predict(email: Email):
     }
 
 # ===============================
+# GRAPHICAL CONFUSION MATRIX
+# ===============================
+@app.get("/confusion-matrix")
+def get_confusion_matrix():
+
+    plt.figure(figsize=(6,6))
+    plt.imshow(cm, interpolation='nearest')
+    plt.title("Confusion Matrix")
+    plt.colorbar()
+
+    classes = ["Ham", "Spam"]
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes)
+    plt.yticks(tick_marks, classes)
+
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            plt.text(j, i, cm[i, j],
+                     horizontalalignment="center")
+
+    plt.ylabel("Actual")
+    plt.xlabel("Predicted")
+
+    plt.tight_layout()
+    plt.savefig(IMAGE_PATH)
+    plt.close()
+
+    return FileResponse(IMAGE_PATH, media_type="image/png")
+
+# ===============================
 # METRICS ENDPOINT
 # ===============================
 @app.get("/model-metrics")
 def model_metrics():
 
     return {
-        "accuracy": round(float(accuracy), 4),
-        "quadrants": {
-            "True Positive (Spam correctly detected)": int(tp),
-            "True Negative (Ham correctly detected)": int(tn),
-            "False Positive (Ham marked as Spam)": int(fp),
-            "False Negative (Spam missed)": int(fn)
-        }
+        "accuracy": round(float(accuracy), 4)
     }
