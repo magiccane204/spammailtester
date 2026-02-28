@@ -1,13 +1,12 @@
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-import os
-import pickle
 import pandas as pd
 import matplotlib
-matplotlib.use("Agg")   # VERY IMPORTANT FOR RAILWAY
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+import io
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
@@ -16,20 +15,19 @@ from sklearn.model_selection import train_test_split
 
 app = FastAPI()
 
+DATA_PATH = "spam.csv"
 
 # ===============================
-# ROOT ROUTE (Prevents NX)
+# ROOT ROUTE
 # ===============================
 @app.get("/")
 def home():
     return {"status": "Spam Detection API is live 🚀"}
 
 # ===============================
-# TRAIN OR LOAD MODEL
+# TRAIN MODEL IN MEMORY (NO FILE WRITING)
 # ===============================
-if not os.path.exists(MODEL_PATH):
-
-  print("Training model...")
+print("Training model...")
 
 data = pd.read_csv(DATA_PATH)
 data['label'] = data['label'].map({'ham': 0, 'spam': 1})
@@ -58,25 +56,13 @@ model = LogisticRegression(
 model.fit(X_train_vec, y_train)
 
 print("Model trained successfully.")
-else:
-    print("Loading existing model...")
-    model = pickle.load(open(MODEL_PATH, "rb"))
-    vectorizer = pickle.load(open(VECTORIZER_PATH, "rb"))
 
 # ===============================
-# CALCULATE METRICS
+# METRICS
 # ===============================
-data = pd.read_csv(DATA_PATH)
-data['label'] = data['label'].map({'ham': 0, 'spam': 1})
-
-X = data['message']
-y = data['label']
-
-X_vec = vectorizer.transform(X)
-y_pred = model.predict(X_vec)
-
-cm = confusion_matrix(y, y_pred)
-accuracy = accuracy_score(y, y_pred)
+y_pred = model.predict(X_test_vec)
+cm = confusion_matrix(y_test, y_pred)
+accuracy = accuracy_score(y_test, y_pred)
 
 # ===============================
 # REQUEST SCHEMA
@@ -100,34 +86,36 @@ def predict(email: Email):
     }
 
 # ===============================
-# CONFUSION MATRIX IMAGE
+# CONFUSION MATRIX (NO FILE SAVE)
 # ===============================
 @app.get("/confusion-matrix")
 def get_confusion_matrix():
 
-    plt.figure(figsize=(6,6))
-    plt.imshow(cm, interpolation='nearest')
-    plt.title("Confusion Matrix")
-    plt.colorbar()
+    fig, ax = plt.subplots(figsize=(6,6))
+    ax.imshow(cm, interpolation='nearest')
+    ax.set_title("Confusion Matrix")
 
     classes = ["Ham", "Spam"]
     tick_marks = np.arange(len(classes))
-    plt.xticks(tick_marks, classes)
-    plt.yticks(tick_marks, classes)
+    ax.set_xticks(tick_marks)
+    ax.set_yticks(tick_marks)
+    ax.set_xticklabels(classes)
+    ax.set_yticklabels(classes)
 
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
-            plt.text(j, i, cm[i, j],
-                     horizontalalignment="center")
+            ax.text(j, i, cm[i, j], ha="center")
 
-    plt.ylabel("Actual")
-    plt.xlabel("Predicted")
+    ax.set_ylabel("Actual")
+    ax.set_xlabel("Predicted")
+
+    buf = io.BytesIO()
     plt.tight_layout()
+    plt.savefig(buf, format="png")
+    plt.close(fig)
+    buf.seek(0)
 
-    plt.savefig(IMAGE_PATH)
-    plt.close()
-
-    return FileResponse(IMAGE_PATH, media_type="image/png")
+    return StreamingResponse(buf, media_type="image/png")
 
 # ===============================
 # METRICS ENDPOINT
