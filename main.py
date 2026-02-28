@@ -4,6 +4,8 @@ from pydantic import BaseModel
 import os
 import pickle
 import pandas as pd
+import matplotlib
+matplotlib.use("Agg")   # VERY IMPORTANT FOR RAILWAY
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -18,6 +20,13 @@ MODEL_PATH = "model.pkl"
 VECTORIZER_PATH = "vectorizer.pkl"
 DATA_PATH = "spam.csv"
 IMAGE_PATH = "confusion_matrix.png"
+
+# ===============================
+# ROOT ROUTE (Prevents NX)
+# ===============================
+@app.get("/")
+def home():
+    return {"status": "Spam Detection API is live 🚀"}
 
 # ===============================
 # TRAIN OR LOAD MODEL
@@ -36,11 +45,20 @@ if not os.path.exists(MODEL_PATH):
         random_state=42
     )
 
-    vectorizer = TfidfVectorizer(stop_words='english', max_df=0.9, min_df=2)
+    vectorizer = TfidfVectorizer(
+        stop_words='english',
+        max_df=0.9,
+        min_df=2
+    )
+
     X_train_vec = vectorizer.fit_transform(X_train)
     X_test_vec = vectorizer.transform(X_test)
 
-    model = LogisticRegression(max_iter=1000, class_weight='balanced')
+    model = LogisticRegression(
+        max_iter=1000,
+        class_weight='balanced'
+    )
+
     model.fit(X_train_vec, y_train)
 
     pickle.dump(model, open(MODEL_PATH, "wb"))
@@ -75,7 +93,7 @@ class Email(BaseModel):
     text: str
 
 # ===============================
-# PREDICT ENDPOINT
+# PREDICTION ENDPOINT
 # ===============================
 @app.post("/predict")
 def predict(email: Email):
@@ -90,7 +108,7 @@ def predict(email: Email):
     }
 
 # ===============================
-# GRAPHICAL CONFUSION MATRIX
+# CONFUSION MATRIX IMAGE
 # ===============================
 @app.get("/confusion-matrix")
 def get_confusion_matrix():
@@ -112,8 +130,8 @@ def get_confusion_matrix():
 
     plt.ylabel("Actual")
     plt.xlabel("Predicted")
-
     plt.tight_layout()
+
     plt.savefig(IMAGE_PATH)
     plt.close()
 
@@ -125,6 +143,14 @@ def get_confusion_matrix():
 @app.get("/model-metrics")
 def model_metrics():
 
+    tn, fp, fn, tp = cm.ravel()
+
     return {
-        "accuracy": round(float(accuracy), 4)
+        "accuracy": round(float(accuracy), 4),
+        "confusion_matrix": {
+            "true_negative": int(tn),
+            "false_positive": int(fp),
+            "false_negative": int(fn),
+            "true_positive": int(tp)
+        }
     }
