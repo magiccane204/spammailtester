@@ -4,7 +4,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB
 
-data = pd.read_csv("spam.csv")  # must have 'label' and 'message'
+data = pd.read_csv("spam.csv") 
 data['label'] = data['label'].map({'ham': 0, 'spam': 1})
 
 X_train, X_test, y_train, y_test = train_test_split(
