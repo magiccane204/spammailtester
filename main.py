@@ -17,15 +17,11 @@ app = FastAPI()
 
 DATA_PATH = "spam.csv"
 
-# ===============================
-# LOAD DATA
-# ===============================
+
 data = pd.read_csv(DATA_PATH)
 data['label'] = data['label'].map({'ham': 0, 'spam': 1})
 
-# ===============================
-# TRAIN / TEST SPLIT
-# ===============================
+
 X_train, X_test, y_train, y_test = train_test_split(
     data['message'],
     data['label'],
@@ -34,12 +30,10 @@ X_train, X_test, y_train, y_test = train_test_split(
     stratify=data['label']
 )
 
-# ===============================
-# VECTORIZATION (Stronger Features)
-# ===============================
+
 vectorizer = TfidfVectorizer(
     stop_words='english',
-    ngram_range=(1,2),        # unigrams + bigrams
+    ngram_range=(1,2),       
     max_df=0.95,
     min_df=2,
     sublinear_tf=True
@@ -48,9 +42,7 @@ vectorizer = TfidfVectorizer(
 X_train_vec = vectorizer.fit_transform(X_train)
 X_test_vec = vectorizer.transform(X_test)
 
-# ===============================
-# MODEL (High Precision)
-# ===============================
+
 model = LinearSVC(
     C=1.5,
     class_weight='balanced'
@@ -58,30 +50,22 @@ model = LinearSVC(
 
 model.fit(X_train_vec, y_train)
 
-# ===============================
-# EVALUATION (ONLY TEST SET)
-# ===============================
+
 y_pred = model.predict(X_test_vec)
 cm = confusion_matrix(y_test, y_pred)
 accuracy = accuracy_score(y_test, y_pred)
 report = classification_report(y_test, y_pred, output_dict=True)
 
-# ===============================
-# ROOT ROUTE
-# ===============================
+
 @app.get("/")
 def home():
-    return {"status": "High-Precision Spam API is live 🚀"}
+    return {"status": "Spam API is live"}
 
-# ===============================
-# REQUEST SCHEMA
-# ===============================
+
 class Email(BaseModel):
     text: str
 
-# ===============================
-# PREDICTION ENDPOINT
-# ===============================
+
 @app.post("/predict")
 def predict(email: Email):
 
@@ -92,9 +76,7 @@ def predict(email: Email):
         "prediction": "Spam" if prediction == 1 else "Not Spam"
     }
 
-# ===============================
-# CONFUSION MATRIX (IN MEMORY)
-# ===============================
+
 @app.get("/confusion-matrix")
 def get_confusion_matrix():
 
@@ -124,9 +106,7 @@ def get_confusion_matrix():
 
     return StreamingResponse(buf, media_type="image/png")
 
-# ===============================
-# METRICS ENDPOINT
-# ===============================
+
 @app.get("/model-metrics")
 def model_metrics():
 

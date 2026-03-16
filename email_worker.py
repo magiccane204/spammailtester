@@ -5,9 +5,6 @@ import time
 import os
 from email.header import decode_header
 
-# ==============================
-# LOAD ENV VARIABLES
-# ==============================
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 SPAM_API_URL = os.getenv("SPAM_API_URL")
@@ -15,18 +12,14 @@ SPAM_API_URL = os.getenv("SPAM_API_URL")
 if not EMAIL_ADDRESS or not EMAIL_PASSWORD or not SPAM_API_URL:
     raise Exception("Missing environment variables")
 
-# ==============================
-# CONNECT TO GMAIL
-# ==============================
+
 def connect():
     imap = imaplib.IMAP4_SSL("imap.gmail.com")
     imap.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
     imap.select("INBOX")
     return imap
 
-# ==============================
-# MOVE EMAIL TO SPAM
-# ==============================
+
 def move_to_spam(imap, msg_id):
     try:
         imap.copy(msg_id, "[Gmail]/Spam")
@@ -36,9 +29,7 @@ def move_to_spam(imap, msg_id):
     except Exception as e:
         print("Move failed:", e)
 
-# ==============================
-# DECODE SUBJECT SAFELY
-# ==============================
+
 def decode_subject(subject_raw):
     decoded = decode_header(subject_raw or "")
     subject = ""
@@ -51,9 +42,7 @@ def decode_subject(subject_raw):
 
     return subject
 
-# ==============================
-# PROCESS EMAILS
-# ==============================
+
 def scan_emails():
     imap = connect()
 
@@ -68,7 +57,7 @@ def scan_emails():
         status, msg_data = imap.fetch(num, "(RFC822)")
         msg = email.message_from_bytes(msg_data[0][1])
 
-        # ✅ SAFE SUBJECT DECODING
+       
         subject = decode_subject(msg["Subject"])
         body = ""
 
@@ -101,9 +90,7 @@ def scan_emails():
 
     imap.logout()
 
-# ==============================
-# RUN FOREVER
-# ==============================
+
 while True:
     print("Scanning inbox...")
     scan_emails()
